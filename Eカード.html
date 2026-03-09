@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta name="robots" content="noindex">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Eカード</title>
+
+  <style>
+    body{
+      font-family: 'Trebuchet MS', sans-serif;
+      background: radial-gradient(circle at center, #0d2a0d 0%, #021b04 45%, #000000 100%);
+      color:#ffd;
+      padding:20px;
+      display:flex;
+      justify-content:center;
+    }
+
+    .board{
+      width:900px;
+      max-width:96%;
+      background:rgba(10,10,10,0.92);
+      padding:25px;
+      border-radius:18px;
+      border:2px solid #c89b1f;
+      box-shadow:0 0 25px rgba(255,220,130,0.3), inset 0 0 30px rgba(255,220,130,0.15);
+      position:relative;
+    }
+
+    h2,h3{
+      color:#f7d67a;
+      text-shadow:0 0 8px rgba(255,200,80,0.5);
+    }
+
+    /* 手札 */
+    .hand{
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+
+    .cardImg{
+      width:100px;
+      height:100px;
+      object-fit:cover;
+      border-radius:10px;
+      cursor:pointer;
+      border:2px solid #c89b1f;
+      box-shadow:0 4px 10px rgba(0,0,0,0.5);
+      transition:0.18s;
+    }
+    .cardImg:hover{
+      transform:scale(1.1);
+      box-shadow:0 0 14px rgba(255,220,130,0.6);
+    }
+
+    /* 置き場 */
+    #playArea{
+      display:flex;
+      flex-direction:row;
+      gap:40px;
+      justify-content:center;
+      align-items:center;
+      width:100%;
+      margin:20px 0;
+    }
+
+    .pile{
+      width:180px;
+      height:200px;
+      background:linear-gradient(180deg, rgba(30,60,30,0.6), rgba(10,20,10,0.6));
+      border-radius:12px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      border:2px solid #c89b1f;
+      box-shadow:inset 0 0 25px rgba(255,220,130,0.25);
+      font-size:20px;
+      color:#ffe9b5;
+    }
+
+    .playedCardImg{
+      width:110px;
+      height:110px;
+      border-radius:10px;
+      border:2px solid #c89b1f;
+      object-fit:cover;
+    }
+
+    /* CPU めくり */
+    .flip-container {
+      width:110px;
+      height:110px;
+      perspective:900px;
+    }
+    .flip-card {
+      width:100%;
+      height:100%;
+      position:relative;
+      transform-style:preserve-3d;
+      transition: transform 0.7s;
+    }
+    .flip-card.flip {
+      transform: rotateY(180deg);
+    }
+    .flip-front, .flip-back{
+      position:absolute;
+      width:100%;
+      height:100%;
+      backface-visibility:hidden;
+      border-radius:10px;
+      border:2px solid #c89b1f;
+    }
+    .flip-back{
+      transform: rotateY(180deg);
+    }
+
+    /* ログ */
+    .log{
+      background:rgba(0,0,0,0.5);
+      padding:10px;
+      border-radius:10px;
+      height:200px;
+      overflow:auto;
+      border:2px solid #c89b1f;
+    }
+
+    /* 紙吹雪 */
+    .confetti {
+      position:absolute;
+      width:10px;
+      height:14px;
+      background: gold;
+      top:-20px;
+      animation: fall 2.5s linear infinite;
+      opacity:0.9;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(0) rotate(0deg); }
+      100% { transform: translateY(900px) rotate(360deg); }
+    }
+
+    /* フラッシュ */
+    .lose-flash{
+      position:absolute;
+      top:0; left:0;
+      width:100%; height:100%;
+      background:rgba(255,0,0,0.35);
+      animation: loseFlash 0.7s ease-out;
+      pointer-events:none;
+    }
+    @keyframes loseFlash {
+      0%{opacity:1;}
+      100%{opacity:0;}
+    }
+
+    /* 結果画面 */
+    #resultScreen{
+      display:none;
+      text-align:center;
+      padding:40px;
+      font-size:36px;
+      font-weight:900;
+      color:#ffe9b5;
+      text-shadow:0 0 12px rgba(255,220,130,0.5);
+    }
+
+    #nextGameBtn{
+      padding:14px 30px;
+      border-radius:12px;
+      border:none;
+      font-size:22px;
+      font-weight:900;
+      cursor:pointer;
+      background:linear-gradient(180deg,#cc2020,#600000);
+      color:#ffe9b5;
+      box-shadow:0 6px 12px rgba(0,0,0,0.5);
+      display:none;
+    }
+    #nextGameBtn:hover{
+      transform:scale(1.12);
+    }
+  </style>
+</head>
+
+<body>
+<div class="board" id="board">
+
+  <!-- 結果 -->
+  <div id="resultScreen"></div>
+
+  <h2 id="title">Eカード</h2>
+
+  <div id="infoArea">
+    あなたの役割：<strong id="playerRole"></strong><br>
+    CPUの役割:<strong id="cpuRole"></strong><br>
+    ラウンド：<strong id="round">0/5</strong>
+  </div>
+
+  <h3 id="handTitle">あなたの手札</h3>
+  <div id="playerHand" class="hand"></div>
+
+  <div id="playArea">
+    <div class="pile">
+      あなた
+      <div id="playerPlayedBox"></div>
+    </div>
+
+    <div class="pile">
+      CPU
+      <div id="cpuPlayedBox"></div>
+    </div>
+  </div>
+
+  <button id="nextGameBtn">次のゲームへ</button>
+
+  <h3 id="logTitle">ログ</h3>
+  <div id="log" class="log"></div>
+</div>
+
+<script>
+let playerRole = '';
+let cpuRole = '';
+let playerHand = [];
+let cpuHand = [];
+let playerPlayed = null;
+let cpuPlayed = null;
+let round = 0;
+
+const el = id => document.getElementById(id);
+
+/* カード画像 */
+const cardImgPath = {
+  "皇帝": "Eカード/皇帝.png",
+  "奴隷": "Eカード/奴隷.png",
+  "市民": "Eカード/市民.png",
+  "裏面": "Eカード/背景.png"
+};
+
+/* ゲーム開始 */
+function startNewGame(){
+  document.querySelectorAll("#title, #infoArea, #handTitle, #playerHand, #playArea, #logTitle, #log")
+    .forEach(e => e.style.display="");
+
+  el("resultScreen").style.display="none";
+  el("nextGameBtn").style.display="none";
+
+  round = 0;
+  playerPlayed = null;
+  cpuPlayed = null;
+
+  if(Math.random() < 0.5){
+    playerRole = '皇帝'; cpuRole = '奴隷';
+  }else{
+    playerRole = '奴隷'; cpuRole = '皇帝';
+  }
+  el("playerRole").innerText = playerRole;
+  el("cpuRole").innerText = cpuRole;
+
+  deal();
+  renderHands();
+  logClear();
+  logAdd("ゲーム開始");
+  updateRound();
+
+  el('playerPlayedBox').innerHTML = '';
+  el('cpuPlayedBox').innerHTML = '';
+}
+
+/* カード配布 */
+function deal(){
+  if(playerRole === '皇帝'){
+    playerHand = ['皇帝','市民','市民','市民','市民'];
+    cpuHand    = ['奴隷','市民','市民','市民','市民'];
+  }else{
+    playerHand = ['奴隷','市民','市民','市民','市民'];
+    cpuHand    = ['皇帝','市民','市民','市民','市民'];
+  }
+}
+
+/* 手札表示 */
+function renderHands(){
+  const box = el('playerHand');
+  box.innerHTML = '';
+  playerHand.forEach((c,i)=>{
+    const img=document.createElement("img");
+    img.src=cardImgPath[c];
+    img.className="cardImg";
+    img.onclick=()=>playPlayerCard(i);
+    box.appendChild(img);
+  });
+}
+
+/* プレイヤーが出す */
+function playPlayerCard(index){
+  if(playerPlayed!==null) return;
+
+  playerPlayed = playerHand.splice(index,1)[0];
+
+  el('playerPlayedBox').innerHTML =
+    `<img src="${cardImgPath[playerPlayed]}" class="playedCardImg">`;
+
+  renderHands();
+
+  setTimeout(cpuRespond,300);
+}
+
+/* CPU */
+function cpuRespond(){
+  const idx = Math.floor(Math.random()*cpuHand.length);
+  cpuPlayed = cpuHand.splice(idx,1)[0];
+
+  el('cpuPlayedBox').innerHTML = `
+    <div class="flip-container">
+      <div id="cpuFlipCard" class="flip-card">
+        <img src="${cardImgPath['裏面']}" class="flip-front">
+        <img src="${cardImgPath[cpuPlayed]}" class="flip-back">
+      </div>
+    </div>
+  `;
+
+  setTimeout(()=>{
+    el('cpuFlipCard').classList.add('flip');
+    setTimeout(resolveRound,900);
+  },1700);
+}
+
+/* 判定処理 */
+function resolveRound(){
+  if(!playerPlayed || !cpuPlayed) return;
+
+  // 奴隷 vs 皇帝 → 奴隷勝利
+  if(
+    (playerPlayed==='皇帝' && cpuPlayed==='奴隷')||
+    (playerPlayed==='奴隷' && cpuPlayed==='皇帝')
+  ){
+    endGameImmediate('slave');
+    return;
+  }
+
+  // 皇帝 vs 市民 → 皇帝勝利
+  if(
+    (playerPlayed==='皇帝' && cpuPlayed==='市民')||
+    (playerPlayed==='市民' && cpuPlayed==='皇帝')
+  ){
+    endGameImmediate('emperor');
+    return;
+  }
+
+  // 市民 vs 奴隷 → 市民（＝皇帝陣営）勝利
+  if(
+    (playerPlayed==='市民' && cpuPlayed==='奴隷')||
+    (playerPlayed==='奴隷' && cpuPlayed==='市民')
+  ){
+    endGameImmediate('emperor');
+    return;
+  }
+
+  // 市民同士
+  logAdd("引き分け → 続行");
+
+  round++;
+  updateRound();
+
+  playerPlayed=null;
+  cpuPlayed=null;
+  el('playerPlayedBox').innerHTML='';
+  el('cpuPlayedBox').innerHTML='';
+}
+
+/* 即時勝敗（あなた基準） */
+function endGameImmediate(winnerSide){
+  const resultScreen = el("resultScreen");
+  resultScreen.style.display="block";
+
+  let playerWins = false;
+  if (winnerSide === 'emperor' && playerRole === '皇帝') playerWins = true;
+  if (winnerSide === 'slave'   && playerRole === '奴隷') playerWins = true;
+
+  if(playerWins){
+    resultScreen.innerText = "あなたの勝利！";
+    launchConfetti();
+  } else {
+    resultScreen.innerText = "あなたの敗北…";
+    showLoseFlash();
+  }
+
+  // UIを隠す
+  document.querySelectorAll("#title, #infoArea, #handTitle, #playerHand, #playArea, #logTitle, #log")
+    .forEach(e => e.style.display="none");
+
+  el("nextGameBtn").style.display="block";
+}
+
+/* 紙吹雪 */
+function launchConfetti(){
+  const board = el("board");
+  for(let i=0;i<80;i++){
+    const c=document.createElement("div");
+    c.className="confetti";
+    c.style.left = Math.random()*900 + "px";
+    c.style.animationDelay=Math.random()+"s";
+    board.appendChild(c);
+    setTimeout(()=>c.remove(),2500);
+  }
+}
+
+/* 敗北フラッシュ */
+function showLoseFlash(){
+  const board = el("board");
+  const f=document.createElement("div");
+  f.className="lose-flash";
+  board.appendChild(f);
+  setTimeout(()=>f.remove(),700);
+}
+
+/* 共通関数 */
+function updateRound(){
+  el('round').innerText = `${round}/5`;
+}
+function logAdd(t){
+  const d=document.createElement("div");
+  d.innerText=t;
+  el("log").prepend(d);
+}
+function logClear(){
+  el("log").innerHTML="";
+}
+
+/* 次のゲーム */
+el("nextGameBtn").onclick = startNewGame;
+
+/* 初回 */
+startNewGame();
+</script>
+</body>
+</html>
